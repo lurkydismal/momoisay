@@ -69,6 +69,11 @@ auto main( int _argumentCount, char** _argumentVector ) -> int {
     };
 
     std::map< int, arhodigp::option_t > l_options{
+        {
+            'a',
+            { "alternative", momoisay::setVersion, "VERSION",
+              "Cool animated version of cute Momoi" },
+        },
         { 'n', { "nothing", l_nothing } },
         { 'e',
           {
@@ -98,9 +103,12 @@ auto main( int _argumentCount, char** _argumentVector ) -> int {
         "",
         stdfunc::spanToVector< char*, std::string_view >(
             std::span( _argumentVector, _argumentCount ) ),
-        "example", "no description", 1.2f, "www.example.com", l_options );
+        "momoisay", "Make cute Momoi from Blue Archive say something!!!", 0.1f,
+        "github.com/lurkydismal/momoisay", l_options );
 
     momoisay::printBuildType();
+
+    logg$debug( "RUN: {}", momoisay::run( _argumentCount, _argumentVector ) );
 
 #if defined( __SANITIZE_LEAK__ )
 

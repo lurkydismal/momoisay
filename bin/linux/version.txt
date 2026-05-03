@@ -1,3 +1,0 @@
-momoisay v1.1.1
-Built: 2025-07-22
-Target: Linux x86_64

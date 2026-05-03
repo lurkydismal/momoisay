@@ -3,8 +3,8 @@
 #include <span>
 
 #include "arhodigp.hpp"
-#include "example.hpp"
 #include "logg.hpp"
+#include "momoisay.hpp"
 #include "stddebug.hpp"
 #include "stdfunc.hpp"
 
@@ -100,7 +100,7 @@ auto main( int _argumentCount, char** _argumentVector ) -> int {
             std::span( _argumentVector, _argumentCount ) ),
         "example", "no description", 1.2f, "www.example.com", l_options );
 
-    example::printBuildType();
+    momoisay::printBuildType();
 
 #if defined( __SANITIZE_LEAK__ )
 

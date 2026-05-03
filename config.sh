@@ -1,9 +1,9 @@
 #!/bin/bash
 export partsToBuild=(
-    "example"
+    "momoisay"
 )
 export testsToBuild=(
-    "example"
+    "momoisay"
 
     "arhodigp"
     "logg"

@@ -1,10 +1,10 @@
-#include "example.hpp"
+#include "momoisay.hpp"
 
 #include <string_view>
 
 #include "logg.hpp"
 
-namespace example {
+namespace momoisay {
 
 void printBuildType() {
     logg$debug( "Message that is only in {}", "Debug" );
@@ -40,4 +40,4 @@ void printBuildType() {
 #endif
 }
 
-} // namespace example
+} // namespace momoisay

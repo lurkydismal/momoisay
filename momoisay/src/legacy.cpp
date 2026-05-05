@@ -12,6 +12,8 @@
 #include "art.hpp"
 #include "momoisay.hpp"
 
+namespace {
+
 #define STATIC_V1_X 15
 #define STATIC_V1_Y 110
 #define STATIC_V1_RY 38
@@ -94,7 +96,7 @@
  *   - No matching teardown here (endwin() must be called elsewhere).
  *   - Mixing raw()/cbreak() elsewhere can lead to undefined terminal states.
  */
-static void init() {
+void init() {
     setlocale( LC_ALL, "" );
 
     initscr();
@@ -125,28 +127,26 @@ static void init() {
  * Returns:
  *   Number of rows needed to render the text.
  */
-static auto getLine( char** _argv, int _start, int _end ) -> int {
-    int l_lines = 0;
-    int l_cnt = 0;
-
-    /* If there is at least one argument, the output occupies at least one line.
-     */
-    if ( _end - _start ) {
-        l_lines++;
+auto getLine( std::string_view _text ) -> size_t {
+    if ( _text.empty() ) {
+        return 0;
     }
 
-    for ( int l_i = _start; l_i < _end; l_i++ ) {
-        char* l_str = _argv[ l_i ];
+    // If there is at least one argument, the output occupies at least one line.
+    int l_lines = 1;
+    int l_cnt = 0;
 
-        while ( *l_str != '\0' ) {
-            /* Wrap to a new line once the current line reaches MAX_LENGTH. */
-            if ( l_cnt >= MAX_LENGTH ) {
-                l_cnt = 0;
-                l_lines++;
-            }
+    for ( char l_ch : _text ) {
+        if ( l_ch == '\n' ) {
+            l_lines++;
+            l_cnt = 0;
+            continue;
+        }
 
-            l_cnt++;
-            l_str++;
+        /* Wrap to a new line once the current line reaches MAX_LENGTH. */
+        if ( l_cnt >= MAX_LENGTH ) {
+            l_lines++;
+            l_cnt = 0;
         }
 
         /* Count the separator between words/arguments. */
@@ -169,7 +169,7 @@ static auto getLine( char** _argv, int _start, int _end ) -> int {
  *   Pointer to an array of row pointers, or nullptr/invalid allocation result
  *   depending on malloc/calloc behavior.
  */
-static auto createCanvas( int _x, int _y ) -> char** {
+auto createCanvas( int _x, int _y ) -> char** {
     char** l_canvas = ( char** )malloc( _x * sizeof( char* ) );
 
     for ( int l_i = 0; l_i < _x; l_i++ ) {
@@ -185,7 +185,7 @@ static auto createCanvas( int _x, int _y ) -> char** {
  * Each canvas row is printed on the next terminal line.
  * refresh() is called after all rows are drawn.
  */
-static void printCanvas( char** _canvas, int _x, int _px, int _py ) {
+void printCanvas( char** _canvas, int _x, int _px, int _py ) {
     for ( int l_i = 0; l_i < _x; l_i++ ) {
         mvprintw( _py + l_i, _px, "%s", _canvas[ l_i ] );
     }
@@ -198,7 +198,7 @@ static void printCanvas( char** _canvas, int _x, int _px, int _py ) {
  *
  * Safe to call with nullptr.
  */
-static void freeCanvas( char** _canvas, int _x ) {
+void freeCanvas( char** _canvas, int _x ) {
     if ( _canvas == nullptr ) {
         return;
     }
@@ -222,18 +222,16 @@ static void freeCanvas( char** _canvas, int _x ) {
  * Returns:
  *   Total printable length, clamped to MAX_LENGTH.
  */
-static auto textlen( char* _argv[], int _start, int _end ) -> int {
-    int l_length = 0;
-
-    for ( int l_i = _start; l_i < _end; l_i++ ) {
-        l_length += strlen( _argv[ l_i ] ) + 1;
+auto textlen( std::string_view _text ) -> size_t {
+    if ( _text.empty() ) {
+        return ( 0 );
     }
 
-    if ( l_length - 1 > MAX_LENGTH ) {
-        return ( MAX_LENGTH );
+    if ( _text.size() > MAX_LENGTH ) {
+        return MAX_LENGTH;
     }
 
-    return ( l_length - 1 );
+    return ( _text.size() );
 }
 
 /**
@@ -269,18 +267,18 @@ static auto textlen( char* _argv[], int _start, int _end ) -> int {
  *   - The function blocks until _round reaches 0.
  *   - If _round is negative, the loop never naturally terminates.
  */
-static void constructV1( std::span< const art::frame_t > _art,
-                         char* _argv[],
-                         std::span< const int > _intervals,
-                         int _frames,
-                         int _x,
-                         int _y,
-                         int _ry,
-                         int _length,
-                         int _lines,
-                         int _start,
-                         int _end,
-                         int _round ) {
+void constructV1( std::span< const art::frame_t > _art,
+                  char* _argv[],
+                  std::span< const int > _intervals,
+                  int _frames,
+                  int _x,
+                  int _y,
+                  int _ry,
+                  int _length,
+                  int _lines,
+                  int _start,
+                  int _end,
+                  int _round ) {
     /* Index of the current animation frame. */
     int l_currentFrame = 0;
 
@@ -446,8 +444,6 @@ static void constructV1( std::span< const art::frame_t > _art,
     }
 }
 
-namespace {
-
 namespace detail {
 
 using mode_t = enum class mode : uint8_t {
@@ -479,13 +475,11 @@ auto setAnimated( [[maybe_unused]] int _key,
     return ( true );
 }
 
-void oneshot() {
+void oneshot( std::string_view _text ) {
     init();
 
-    size_t l_length =
-        5 + textlen( _argumentVector, optind + l_argctl, _argumentCount );
-    size_t l_lines =
-        getLine( _argumentVector, optind + l_argctl, _argumentCount );
+    size_t l_length = 5 + textlen( _text );
+    size_t l_lines = getLine( _text );
 
     if ( l_length <= 5 ) {
         l_length = 0;

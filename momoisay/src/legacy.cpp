@@ -170,13 +170,29 @@ auto getLine( std::string_view _text ) -> size_t {
  *   depending on malloc/calloc behavior.
  */
 auto createCanvas( int _x, int _y ) -> char** {
-    char** l_canvas = ( char** )malloc( _x * sizeof( char* ) );
+    /* Allocate pointer table + contiguous character buffer. */
+    size_t l_ptrSize = _x * sizeof( char* );
+    size_t l_dataSize = ( size_t )_x * ( _y + 1 ) * sizeof( char );
 
-    for ( int l_i = 0; l_i < _x; l_i++ ) {
-        l_canvas[ l_i ] = ( char* )calloc( _y + 1, sizeof( char ) );
+    auto l_canvas =
+        static_cast< gsl::owner< char** > >( malloc( l_ptrSize + l_dataSize ) );
+
+    if ( l_canvas == nullptr ) {
+        return nullptr;
     }
 
-    return ( l_canvas );
+    /* Data block starts right after the pointer table. */
+    char* l_data = ( char* )( ( char* )l_canvas + l_ptrSize );
+
+    /* Assign row pointers into the contiguous block. */
+    for ( int l_i = 0; l_i < _x; l_i++ ) {
+        l_canvas[ l_i ] = l_data + ( size_t )l_i * ( _y + 1 );
+    }
+
+    /* Zero the entire character buffer (like calloc). */
+    memset( l_data, 0, l_dataSize );
+
+    return l_canvas;
 }
 
 /**
@@ -198,15 +214,7 @@ void printCanvas( char** _canvas, int _x, int _px, int _py ) {
  *
  * Safe to call with nullptr.
  */
-void freeCanvas( char** _canvas, int _x ) {
-    if ( _canvas == nullptr ) {
-        return;
-    }
-
-    for ( int l_i = 0; l_i < _x; l_i++ ) {
-        free( _canvas[ l_i ] );
-    }
-
+void freeCanvas( char** _canvas ) {
     free( _canvas );
 }
 
@@ -424,7 +432,7 @@ void constructV1( std::span< const art::frame_t > _art,
         usleep( _intervals[ l_currentFrame++ ] );
 
         /* Free the canvas memory allocated for this frame. */
-        freeCanvas( l_canvas, _x );
+        freeCanvas( l_canvas );
 
         /* When the last frame has been shown, loop back to the first one. */
         if ( l_currentFrame == _frames ) {

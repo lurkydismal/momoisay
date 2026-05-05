@@ -156,67 +156,38 @@ auto getLine( std::string_view _text ) -> size_t {
     return ( l_lines );
 }
 
-/**
- * Allocate a 2D character buffer representing a text canvas.
- *
- * _x = number of rows
- * _y = number of columns per row
- *
- * Each row is allocated as a zero-initialized C string of length _y + 1,
- * so it can be used with "%s" safely.
- *
- * Returns:
- *   Pointer to an array of row pointers, or nullptr/invalid allocation result
- *   depending on malloc/calloc behavior.
- */
-auto createCanvas( int _x, int _y ) -> char** {
-    /* Allocate pointer table + contiguous character buffer. */
-    size_t l_ptrSize = _x * sizeof( char* );
-    size_t l_dataSize = ( size_t )_x * ( _y + 1 ) * sizeof( char );
+// Allocate a 2D character buffer representing a text canvas.
+using canvas_t = struct canvas {
+    canvas( size_t _x, size_t _y )
+        : _x( _x ), _y( _y ), _data( _x * ( _y + 1 ), '\0' ) {}
 
-    auto l_canvas =
-        static_cast< gsl::owner< char** > >( malloc( l_ptrSize + l_dataSize ) );
-
-    if ( l_canvas == nullptr ) {
-        return nullptr;
+    auto at( size_t _i, size_t _j ) -> char& {
+        return ( _data[ ( size_t )_i * ( _y + 1 ) + _j ] );
     }
 
-    /* Data block starts right after the pointer table. */
-    char* l_data = ( char* )( ( char* )l_canvas + l_ptrSize );
+    /**
+     * Print each row of the canvas at screen position (_px, _py) using ncurses.
+     *
+     * Each canvas row is printed on the next terminal line.
+     * refresh() is called after all rows are drawn.
+     */
 
-    /* Assign row pointers into the contiguous block. */
-    for ( int l_i = 0; l_i < _x; l_i++ ) {
-        l_canvas[ l_i ] = l_data + ( size_t )l_i * ( _y + 1 );
+    void print( size_t _x, size_t _px, size_t _py ) {
+        for ( size_t l_i = 0; l_i < _x; l_i++ ) {
+            mvprintw( _py + l_i, _px, "%s", _row( l_i ) );
+        }
+
+        refresh();
     }
 
-    /* Zero the entire character buffer (like calloc). */
-    memset( l_data, 0, l_dataSize );
+private:
+    auto _row( size_t _i ) -> char* { return ( &_data[ _i * ( _y + 1 ) ] ); }
 
-    return l_canvas;
-}
-
-/**
- * Print each row of the canvas at screen position (_px, _py) using ncurses.
- *
- * Each canvas row is printed on the next terminal line.
- * refresh() is called after all rows are drawn.
- */
-void printCanvas( char** _canvas, int _x, int _px, int _py ) {
-    for ( int l_i = 0; l_i < _x; l_i++ ) {
-        mvprintw( _py + l_i, _px, "%s", _canvas[ l_i ] );
-    }
-
-    refresh();
-}
-
-/**
- * Free a canvas created by createCanvas().
- *
- * Safe to call with nullptr.
- */
-void freeCanvas( char** _canvas ) {
-    free( _canvas );
-}
+private:
+    [[maybe_unused]] int _x;
+    int _y;
+    std::vector< char > _data;
+};
 
 /**
  * Compute the total text length of argv[_start.._end), including one space
@@ -276,16 +247,16 @@ auto textlen( std::string_view _text ) -> size_t {
  */
 void constructV1( std::span< const art::frame_t > _art,
                   std::string_view _text,
-                  std::span< const int > _intervals,
-                  int _frames,
-                  int _x,
-                  int _y,
-                  int _ry,
-                  int _length,
-                  int _lines,
-                  int _round ) {
+                  std::span< const size_t > _intervals,
+                  size_t _frames,
+                  size_t _x,
+                  size_t _y,
+                  size_t _ry,
+                  size_t _length,
+                  size_t _lines,
+                  ssize_t _round ) {
     /* Current animation frame index. */
-    int l_currentFrame = 0;
+    size_t l_currentFrame = 0;
 
     /* Keep rendering until the requested number of rounds is exhausted. */
     while ( _round != 0 ) {
@@ -308,42 +279,42 @@ void constructV1( std::span< const art::frame_t > _art,
            l_pt2 - lower connector cursor / bottom text row anchor
            l_pts - current text column in the canvas
            l_ptt - saved initial text column for wrapping reset */
-        int l_cnt = 0, l_pt1 = ( _x + 1 ) / 2, l_pt2 = ( ( _x + 1 ) / 2 ) + 1,
-            l_pts = 3 + _y, l_ptt = l_pts;
+        size_t l_cnt = 0, l_pt1 = ( _x + 1 ) / 2,
+               l_pt2 = ( ( _x + 1 ) / 2 ) + 1, l_pts = 3 + _y, l_ptt = l_pts;
 
         /* Allocate a blank canvas large enough for the art and the extra text
          * area. */
-        char** l_canvas = createCanvas( _x, _y + _length );
+        canvas_t l_canvas = { _x, _y + _length };
 
         /* Clear the screen before drawing the new frame. */
         erase();
 
         /* Get current terminal dimensions from ncurses. */
-        int l_terminalHeight = LINES;
-        int l_terminalWidth = COLS;
+        size_t l_terminalHeight = LINES;
+        size_t l_terminalWidth = COLS;
 
         /* Compute the top-left draw position so the content is centered. */
-        int l_px = ( l_terminalWidth - _ry - _length ) / 2;
-        int l_py = ( l_terminalHeight - _x ) / 2;
+        ssize_t l_px = ( l_terminalWidth - _ry - _length ) / 2;
+        ssize_t l_py = ( l_terminalHeight - _x ) / 2;
 
         /* Process each row of the canvas. */
-        for ( int l_i = 0; l_i < _x; l_i++ ) {
+        for ( size_t l_i = 0; l_i < _x; l_i++ ) {
             /* Length of the current art row in the source frame. */
-            int l_len = _art[ l_currentFrame ][ l_i ].size();
+            const size_t l_len = _art[ l_currentFrame ][ l_i ].size();
 
             /* Walk across the full output width, including extra text space. */
-            for ( int l_j = 0; l_j < _y + _length; l_j++ ) {
+            for ( size_t l_j = 0; l_j < _y + _length; l_j++ ) {
                 /* If this column is still inside the source art row, copy the
                    source character into the canvas. */
                 if ( l_j < l_len ) {
-                    l_canvas[ l_i ][ l_j ] =
+                    l_canvas.at( l_i, l_j ) =
                         _art[ l_currentFrame ][ l_i ][ l_j ];
 
                     /* Otherwise, if the destination cell is still empty, fill
                        it with a space so the row remains printable as a string.
                      */
-                } else if ( l_canvas[ l_i ][ l_j ] == '\0' ) {
-                    l_canvas[ l_i ][ l_j ] = ' ';
+                } else if ( l_canvas.at( l_i, l_j ) == '\0' ) {
+                    l_canvas.at( l_i, l_j ) = ' ';
                 }
 
                 /* Draw the decorative connector only on the first art row,
@@ -352,15 +323,15 @@ void constructV1( std::span< const art::frame_t > _art,
                     /* At the start of the extra area, place the opening slash
                        pair that begins the connector outline. */
                     if ( l_j == _y ) {
-                        l_canvas[ l_pt1-- ][ l_j ] = '/';
-                        l_canvas[ l_pt2++ ][ l_j ] = '\\';
+                        l_canvas.at( l_pt1--, l_j ) = '/';
+                        l_canvas.at( l_pt2++, l_j ) = '\\';
 
                         /* One column before the opening edge, draw vertical
                            bars extending from both connector sides. */
                     } else if ( l_j - 1 == _y ) {
-                        for ( int l_n = 0; l_n < _lines / 2; l_n++ ) {
-                            l_canvas[ l_pt1-- ][ l_j ] = '|';
-                            l_canvas[ l_pt2++ ][ l_j ] = '|';
+                        for ( size_t l_n = 0; l_n < _lines / 2; l_n++ ) {
+                            l_canvas.at( l_pt1--, l_j ) = '|';
+                            l_canvas.at( l_pt2++, l_j ) = '|';
                         }
 
                         /* Undo the last lower-side increment so the next stage
@@ -371,8 +342,8 @@ void constructV1( std::span< const art::frame_t > _art,
                            connector with vertical bars between the two sides.
                          */
                     } else if ( l_j + 1 == _y + _length ) {
-                        for ( int l_k = ++l_pt1; l_k <= l_pt2; l_k++ ) {
-                            l_canvas[ l_k ][ l_j ] = '|';
+                        for ( size_t l_k = ++l_pt1; l_k <= l_pt2; l_k++ ) {
+                            l_canvas.at( l_k, l_j ) = '|';
                         }
 
                         /* Restore l_pt1 so the next row starts at the intended
@@ -382,8 +353,8 @@ void constructV1( std::span< const art::frame_t > _art,
                         /* Everywhere else in the connector area, draw the top
                            and bottom outline with underscores. */
                     } else {
-                        l_canvas[ l_pt1 ][ l_j ] = '_';
-                        l_canvas[ l_pt2 ][ l_j ] = '_';
+                        l_canvas.at( l_pt1, l_j ) = '_';
+                        l_canvas.at( l_pt2, l_j ) = '_';
                     }
                 }
             }
@@ -415,7 +386,7 @@ void constructV1( std::span< const art::frame_t > _art,
                     }
 
                     /* Write the current character into the canvas. */
-                    l_canvas[ l_textRow ][ l_textCol++ ] = l_ch;
+                    l_canvas.at( l_textRow, l_textCol++ ) = l_ch;
                     l_cnt++;
                 }
             }
@@ -426,13 +397,10 @@ void constructV1( std::span< const art::frame_t > _art,
         }
 
         /* Print the completed canvas at the computed terminal position. */
-        printCanvas( l_canvas, _x, l_px, l_py );
+        l_canvas.print( _x, l_px, l_py );
 
         /* Sleep for the current frame delay, then advance the frame index. */
         usleep( _intervals[ l_currentFrame++ ] );
-
-        /* Free the canvas memory allocated for this frame. */
-        freeCanvas( l_canvas );
 
         /* When the last frame has been shown, loop back to the first one. */
         if ( l_currentFrame == _frames ) {
@@ -488,27 +456,27 @@ void oneshot( std::string_view _text ) {
         l_length = 0;
     }
 
-    if ( g_mode == detail::mode_t::mStatic ) {
+    if ( g_mode == detail::mode_t::animated ) {
         if ( l_lines <= 30 ) {
             if ( l_lines & 1 ) {
                 l_lines++;
             }
 
-            constexpr std::array l_frame = { 150000, 75000, 150000, 150000,
-                                             75000 };
+            constexpr auto l_frame = std::to_array< const size_t >(
+                { 150000, 75000, 150000, 150000, 75000 } );
 
             constructV1( art::g_momoiAnimatedV1, _text, l_frame, 5,
                          ANIMATED_V1_X, ANIMATED_V1_Y, ANIMATED_V1_RY, l_length,
                          l_lines, -1 );
         }
 
-    } else if ( g_mode == detail::mode_t::animated ) {
+    } else if ( g_mode == detail::mode_t::mStatic ) {
         if ( l_lines <= 10 ) {
             if ( l_lines & 1 ) {
                 l_lines++;
             }
 
-            constexpr std::array l_frame = { 75000 };
+            constexpr auto l_frame = std::to_array< const size_t >( { 75000 } );
 
             constructV1( art::g_momoiStaticV1, _text, l_frame, 1, STATIC_V1_X,
                          STATIC_V1_Y, STATIC_V1_RY, l_length, l_lines, -1 );

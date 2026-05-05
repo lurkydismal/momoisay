@@ -34,7 +34,7 @@ auto main( int _argumentCount, char** _argumentVector ) -> int {
         "momoisay", "Make cute Momoi from Blue Archive say something!!!", 0.1f,
         "github.com/lurkydismal/momoisay", l_options );
 
-    momoisay::run( _argumentCount, _argumentVector );
+    momoisay::oneshot();
 
 #if defined( __SANITIZE_LEAK__ )
 

@@ -112,11 +112,6 @@ void init() {
     timeout( -1 );
 }
 
-#if 0
-"    <text>                              Text that cute Momoi will "
-"say!!! (default static version 1)\n" );
-#endif
-
 /**
  * Count how many canvas rows are needed to print argv[_start.._end)
  * with word-wrapping at MAX_LENGTH columns.

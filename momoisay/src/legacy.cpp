@@ -29,13 +29,92 @@
 #define ANIMATED_VERSION 3
 #define MAX_LENGTH 30
 
+/**
+ * Initialize ncurses and configure the terminal for interactive UI usage.
+ *
+ * This function sets up the terminal into a controlled, non-canonical mode
+ * suitable for real-time input handling and full-screen rendering.
+ *
+ * Effects (in order):
+ *
+ * 1. setlocale(LC_ALL, "")
+ *    Enables the system locale so ncurses can correctly handle multibyte
+ *    characters (UTF-8, wide chars, etc.). Without this, drawing non-ASCII
+ *    may break or render incorrectly.
+ *
+ * 2. initscr()
+ *    Initializes the ncurses library and switches the terminal into
+ *    "curses mode". This:
+ *      - Allocates internal screen structures
+ *      - Detects terminal capabilities
+ *      - Switches to an alternate screen buffer
+ *
+ *    Must be called before almost all other ncurses functions.
+ *
+ * 3. cbreak()
+ *    Disables line buffering. Normally, terminal input is buffered until
+ *    newline (canonical mode). In cbreak mode, each keypress becomes
+ *    immediately available to the program.
+ * :contentReference[oaicite:0]{index=0}
+ *
+ *    This is required for responsive input (games, TUIs, etc.).
+ *
+ * 4. noecho()
+ *    Prevents typed characters from being automatically printed to the screen.
+ *    By default, input is echoed; disabling it allows full control over
+ * rendering. :contentReference[oaicite:1]{index=1}
+ *
+ *    Without this, user keypresses would appear on screen unpredictably.
+ *
+ * 5. keypad(stdscr, TRUE)
+ *    Enables special key handling (arrow keys, function keys, etc.).
+ *    Instead of receiving raw escape sequences, getch() returns symbolic
+ *    constants like KEY_UP, KEY_LEFT, etc.
+ *
+ *    Applies to the main window (stdscr).
+ *
+ * 6. curs_set(0)
+ *    Hides the terminal cursor.
+ *    Useful for rendering UIs where the cursor is distracting or meaningless.
+ *
+ * 7. timeout(-1)
+ *    Configures blocking input mode:
+ *      - getch() will block indefinitely until a key is pressed.
+ *
+ *    Behavior:
+ *      delay < 0  → blocking (wait forever)
+ *      delay = 0  → non-blocking (poll)
+ *      delay > 0  → timed wait (milliseconds)
+ *
+ *    This ensures the program pauses for input instead of busy-looping.
+ * :contentReference[oaicite:2]{index=2}
+ *
+ * Summary:
+ *   After this function:
+ *     - Input is immediate (no line buffering)
+ *     - Input is not echoed
+ *     - Special keys are decoded
+ *     - Cursor is hidden
+ *     - Input calls block until keypress
+ *
+ * Notes:
+ *   - There is no error handling; all ncurses calls can fail.
+ *   - No matching teardown here (endwin() must be called elsewhere).
+ *   - Mixing raw()/cbreak() elsewhere can lead to undefined terminal states.
+ */
 static void init() {
     setlocale( LC_ALL, "" );
+
     initscr();
+
     cbreak();
+
     noecho();
+
     keypad( stdscr, TRUE );
+
     curs_set( 0 );
+
     timeout( -1 );
 }
 

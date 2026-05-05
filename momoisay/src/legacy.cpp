@@ -18,15 +18,7 @@
 #define ANIMATED_V1_X 30
 #define ANIMATED_V1_Y 187
 #define ANIMATED_V1_RY 62
-#define ANIMATED_V2_X 30
-#define ANIMATED_V2_Y 189
-#define ANIMATED_V2_RY 62
-#define ANIMATED_V3_X 30
-#define ANIMATED_V3_Y 189
-#define ANIMATED_V3_RY 62
 #define ANIMATED_MY 189
-#define STATIC_VERSION 1
-#define ANIMATED_VERSION 3
 #define MAX_LENGTH 30
 
 /**

@@ -3,11 +3,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <clocale>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <vector>
 
 #include "art.hpp"
 #include "momoisay.hpp"
@@ -208,6 +210,86 @@ auto textlen( std::string_view _text ) -> size_t {
     return ( _text.size() );
 }
 
+void drawTextBox( canvas_t& _canvas,
+                  size_t _x,
+                  size_t _y,
+                  size_t _length,
+                  size_t _lines ) {
+    if ( !_length ) {
+        return;
+    }
+
+    const size_t l_textLines = std::max< size_t >( 1, _lines );
+    const size_t l_boxHeight = l_textLines + 2;
+    const size_t l_top = _x > l_boxHeight ? ( _x - l_boxHeight ) / 2 : 0;
+    const size_t l_bottom = std::min( _x - 1, l_top + l_boxHeight - 1 );
+    const size_t l_left = _y;
+    const size_t l_right = _y + _length - 1;
+
+    if ( l_right <= l_left + 1 ) {
+        return;
+    }
+
+    for ( size_t l_col = l_left + 1; l_col < l_right; l_col++ ) {
+        _canvas.at( l_top, l_col ) = '_';
+        _canvas.at( l_bottom, l_col ) = '_';
+    }
+
+    for ( size_t l_row = l_top + 1; l_row <= l_bottom; l_row++ ) {
+        _canvas.at( l_row, l_left ) = '|';
+        _canvas.at( l_row, l_right ) = '|';
+    }
+}
+
+void writeTextBoxText( canvas_t& _canvas,
+                       std::string_view _text,
+                       size_t _x,
+                       size_t _y,
+                       size_t _length,
+                       size_t _lines ) {
+    if ( !_length || _text.empty() ) {
+        return;
+    }
+
+    const size_t l_textLines = std::max< size_t >( 1, _lines );
+    const size_t l_boxHeight = l_textLines + 2;
+    const size_t l_top = _x > l_boxHeight ? ( _x - l_boxHeight ) / 2 : 0;
+    const size_t l_firstTextRow = l_top + 1;
+    const size_t l_lastTextRow = std::min( _x - 1, l_top + l_textLines );
+    const size_t l_firstTextCol = _y + 2;
+    const size_t l_lastTextCol = _y + _length - 2;
+
+    if ( l_firstTextCol > l_lastTextCol ) {
+        return;
+    }
+
+    size_t l_row = l_firstTextRow;
+    size_t l_col = l_firstTextCol;
+    size_t l_count = 0;
+
+    for ( char l_ch : _text ) {
+        if ( l_ch == '\n' ) {
+            l_row++;
+            l_col = l_firstTextCol;
+            l_count = 0;
+            continue;
+        }
+
+        if ( l_count >= MAX_LENGTH || l_col > l_lastTextCol ) {
+            l_row++;
+            l_col = l_firstTextCol;
+            l_count = 0;
+        }
+
+        if ( l_row > l_lastTextRow ) {
+            return;
+        }
+
+        _canvas.at( l_row, l_col++ ) = l_ch;
+        l_count++;
+    }
+}
+
 /**
  * Render one animated "version 1" scene in ncurses.
  *
@@ -268,15 +350,6 @@ void constructV1( std::span< const art::frame_t > _art,
             exit( 0 );
         }
 
-        /* Per-frame drawing state:
-           l_cnt - general character counter used for wrapping text
-           l_pt1 - upper connector cursor / top text row anchor
-           l_pt2 - lower connector cursor / bottom text row anchor
-           l_pts - current text column in the canvas
-           l_ptt - saved initial text column for wrapping reset */
-        size_t l_cnt = 0, l_pt1 = ( _x + 1 ) / 2,
-               l_pt2 = ( ( _x + 1 ) / 2 ) + 1, l_pts = 3 + _y, l_ptt = l_pts;
-
         /* Allocate a blank canvas large enough for the art and the extra text
          * area. */
         canvas_t l_canvas = { _x, _y + _length };
@@ -311,85 +384,11 @@ void constructV1( std::span< const art::frame_t > _art,
                 } else if ( l_canvas.at( l_i, l_j ) == '\0' ) {
                     l_canvas.at( l_i, l_j ) = ' ';
                 }
-
-                /* Draw the decorative connector only on the first art row,
-                   and only if there is extra space reserved for it. */
-                if ( !l_i && _length ) {
-                    /* At the start of the extra area, place the opening slash
-                       pair that begins the connector outline. */
-                    if ( l_j == _y ) {
-                        l_canvas.at( l_pt1--, l_j ) = '/';
-                        l_canvas.at( l_pt2++, l_j ) = '\\';
-
-                        /* One column before the opening edge, draw vertical
-                           bars extending from both connector sides. */
-                    } else if ( l_j - 1 == _y ) {
-                        for ( size_t l_n = 0; l_n < _lines / 2; l_n++ ) {
-                            l_canvas.at( l_pt1--, l_j ) = '|';
-                            l_canvas.at( l_pt2++, l_j ) = '|';
-                        }
-
-                        /* Undo the last lower-side increment so the next stage
-                           stays aligned. */
-                        l_pt2--;
-
-                        /* At the far edge of the extra area, close the
-                           connector with vertical bars between the two sides.
-                         */
-                    } else if ( l_j + 1 == _y + _length ) {
-                        for ( size_t l_k = ++l_pt1; l_k <= l_pt2; l_k++ ) {
-                            l_canvas.at( l_k, l_j ) = '|';
-                        }
-
-                        /* Restore l_pt1 so the next row starts at the intended
-                           vertical position. */
-                        l_pt1++;
-
-                        /* Everywhere else in the connector area, draw the top
-                           and bottom outline with underscores. */
-                    } else {
-                        l_canvas.at( l_pt1, l_j ) = '_';
-                        l_canvas.at( l_pt2, l_j ) = '_';
-                    }
-                }
             }
-
-            /* Write the text only once, on the first row that reaches the
-               text-rendering section. */
-            if ( !l_cnt && ( _length || _lines ) ) {
-                /* Start writing text from the current connector anchor. */
-                int l_textRow = l_pt1;
-                int l_textCol = l_ptt;
-
-                /* Copy the string_view character by character. */
-                for ( char l_ch : _text ) {
-                    /* Newline forces an explicit row break and resets the
-                       column to the initial text anchor. */
-                    if ( l_ch == '\n' ) {
-                        l_textRow++;
-                        l_textCol = l_ptt;
-                        l_cnt = 0;
-                        continue;
-                    }
-
-                    /* Wrap to the next output row once the current line reaches
-                       the configured maximum width. */
-                    if ( l_cnt >= MAX_LENGTH ) {
-                        l_textRow++;
-                        l_textCol = l_ptt;
-                        l_cnt = 0;
-                    }
-
-                    /* Write the current character into the canvas. */
-                    l_canvas.at( l_textRow, l_textCol++ ) = l_ch;
-                    l_cnt++;
-                }
-            }
-
-            /* Mark that at least one canvas row has been processed.
-               This prevents the text block from being written again. */
-            l_cnt = 1;
         }
+
+        drawTextBox( l_canvas, _x, _y, _length, _lines );
+        writeTextBoxText( l_canvas, _text, _x, _y, _length, _lines );
 
         /* Print the completed canvas at the computed terminal position. */
         l_canvas.print( _x, l_px, l_py );

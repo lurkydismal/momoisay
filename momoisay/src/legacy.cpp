@@ -210,54 +210,58 @@ auto textlen( std::string_view _text ) -> size_t {
     return ( _text.size() );
 }
 
-void drawTextBox( canvas_t& _canvas,
-                  size_t _x,
-                  size_t _y,
-                  size_t _length,
-                  size_t _lines ) {
+void drawTextBox( size_t _artY,
+                  size_t _artHeight,
+                  size_t _boxX,
+                  size_t _lines,
+                  size_t _length ) {
     if ( !_length ) {
         return;
     }
 
     const size_t l_textLines = std::max< size_t >( 1, _lines );
     const size_t l_boxHeight = l_textLines + 2;
-    const size_t l_top = _x > l_boxHeight ? ( _x - l_boxHeight ) / 2 : 0;
-    const size_t l_bottom = std::min( _x - 1, l_top + l_boxHeight - 1 );
-    const size_t l_left = _y;
-    const size_t l_right = _y + _length - 1;
+    const size_t l_top =
+        _artY +
+        ( _artHeight > l_boxHeight ? ( _artHeight - l_boxHeight ) / 2 : 0 );
+    const size_t l_left = _boxX;
+    const size_t l_right = _boxX + _length - 1;
+    const size_t l_bottom = l_top + l_boxHeight - 1;
 
     if ( l_right <= l_left + 1 ) {
         return;
     }
 
     for ( size_t l_col = l_left + 1; l_col < l_right; l_col++ ) {
-        _canvas.at( l_top, l_col ) = '_';
-        _canvas.at( l_bottom, l_col ) = '_';
+        mvaddch( l_top, l_col, '_' );
+        mvaddch( l_bottom, l_col, '-' );
     }
 
     for ( size_t l_row = l_top + 1; l_row <= l_bottom; l_row++ ) {
-        _canvas.at( l_row, l_left ) = '|';
-        _canvas.at( l_row, l_right ) = '|';
+        mvaddch( l_row, l_left, '|' );
+        mvaddch( l_row, l_right, '|' );
     }
 }
 
-void writeTextBoxText( canvas_t& _canvas,
-                       std::string_view _text,
-                       size_t _x,
-                       size_t _y,
-                       size_t _length,
-                       size_t _lines ) {
+void writeTextBoxText( std::string_view _text,
+                       size_t _artY,
+                       size_t _artHeight,
+                       size_t _boxX,
+                       size_t _lines,
+                       size_t _length ) {
     if ( !_length || _text.empty() ) {
         return;
     }
 
     const size_t l_textLines = std::max< size_t >( 1, _lines );
     const size_t l_boxHeight = l_textLines + 2;
-    const size_t l_top = _x > l_boxHeight ? ( _x - l_boxHeight ) / 2 : 0;
+    const size_t l_top =
+        _artY +
+        ( _artHeight > l_boxHeight ? ( _artHeight - l_boxHeight ) / 2 : 0 );
     const size_t l_firstTextRow = l_top + 1;
-    const size_t l_lastTextRow = std::min( _x - 1, l_top + l_textLines );
-    const size_t l_firstTextCol = _y + 2;
-    const size_t l_lastTextCol = _y + _length - 2;
+    const size_t l_lastTextRow = l_top + l_textLines;
+    const size_t l_firstTextCol = _boxX + 2;
+    const size_t l_lastTextCol = _boxX + _length - 2;
 
     if ( l_firstTextCol > l_lastTextCol ) {
         return;
@@ -285,7 +289,7 @@ void writeTextBoxText( canvas_t& _canvas,
             return;
         }
 
-        _canvas.at( l_row, l_col++ ) = l_ch;
+        mvaddch( l_row, l_col++, l_ch );
         l_count++;
     }
 }
@@ -352,7 +356,7 @@ void constructV1( std::span< const art::frame_t > _art,
 
         /* Allocate a blank canvas large enough for the art and the extra text
          * area. */
-        canvas_t l_canvas = { _x, _y + _length };
+        canvas_t l_canvas = { _x, _y };
 
         /* Clear the screen before drawing the new frame. */
         erase();
@@ -371,7 +375,7 @@ void constructV1( std::span< const art::frame_t > _art,
             const size_t l_len = _art[ l_currentFrame ][ l_i ].size();
 
             /* Walk across the full output width, including extra text space. */
-            for ( size_t l_j = 0; l_j < _y + _length; l_j++ ) {
+            for ( size_t l_j = 0; l_j < _y; l_j++ ) {
                 /* If this column is still inside the source art row, copy the
                    source character into the canvas. */
                 if ( l_j < l_len ) {
@@ -387,11 +391,15 @@ void constructV1( std::span< const art::frame_t > _art,
             }
         }
 
-        drawTextBox( l_canvas, _x, _y, _length, _lines );
-        writeTextBoxText( l_canvas, _text, _x, _y, _length, _lines );
-
         /* Print the completed canvas at the computed terminal position. */
         l_canvas.print( _x, l_px, l_py );
+
+        const size_t l_boxX = std::max< ssize_t >( 0, l_px + _ry + 1 );
+        const size_t l_boxY = std::max< ssize_t >( 0, l_py );
+
+        drawTextBox( l_boxY, _x, l_boxX, _lines, _length );
+        writeTextBoxText( _text, l_boxY, _x, l_boxX, _lines, _length );
+        refresh();
 
         /* Sleep for the current frame delay, then advance the frame index. */
         usleep( _intervals[ l_currentFrame++ ] );

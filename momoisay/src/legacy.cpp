@@ -210,11 +210,11 @@ auto textlen( std::string_view _text ) -> size_t {
     return ( _text.size() );
 }
 
-void drawTextBox( size_t _artY,
-                  size_t _artHeight,
-                  size_t _boxX,
-                  size_t _lines,
-                  size_t _length ) {
+void drawSpeechBubble( size_t _artY,
+                       size_t _artHeight,
+                       size_t _boxX,
+                       size_t _lines,
+                       size_t _length ) {
     if ( !_length ) {
         return;
     }
@@ -224,9 +224,12 @@ void drawTextBox( size_t _artY,
     const size_t l_top =
         _artY +
         ( _artHeight > l_boxHeight ? ( _artHeight - l_boxHeight ) / 2 : 0 );
-    const size_t l_left = _boxX;
+    const size_t l_tail = _boxX;
+    const size_t l_left = l_tail + 1;
     const size_t l_right = _boxX + _length - 1;
     const size_t l_bottom = l_top + l_boxHeight - 1;
+    const size_t l_tailTop = l_top + 2;
+    const size_t l_tailBottom = l_tailTop + 1;
 
     if ( l_right <= l_left + 1 ) {
         return;
@@ -243,17 +246,24 @@ void drawTextBox( size_t _artY,
     }
 
     for ( size_t l_row = l_top + 1; l_row < l_bottom; l_row++ ) {
-        mvaddch( l_row, l_left, ACS_VLINE );
+        if ( l_row == l_tailTop ) {
+            mvaddch( l_row, l_tail, '/' );
+        } else if ( l_row == l_tailBottom ) {
+            mvaddch( l_row, l_tail, '\\' );
+        } else {
+            mvaddch( l_row, l_left, ACS_VLINE );
+        }
+
         mvaddch( l_row, l_right, ACS_VLINE );
     }
 }
 
-void writeTextBoxText( std::string_view _text,
-                       size_t _artY,
-                       size_t _artHeight,
-                       size_t _boxX,
-                       size_t _lines,
-                       size_t _length ) {
+void writeSpeechBubbleText( std::string_view _text,
+                            size_t _artY,
+                            size_t _artHeight,
+                            size_t _boxX,
+                            size_t _lines,
+                            size_t _length ) {
     if ( !_length || _text.empty() ) {
         return;
     }
@@ -265,8 +275,10 @@ void writeTextBoxText( std::string_view _text,
         ( _artHeight > l_boxHeight ? ( _artHeight - l_boxHeight ) / 2 : 0 );
     const size_t l_firstTextRow = l_top + 2;
     const size_t l_lastTextRow = l_top + l_textLines + 1;
-    const size_t l_firstTextCol = _boxX + 2;
-    const size_t l_lastTextCol = _boxX + _length - 2;
+    const size_t l_left = _boxX + 1;
+    const size_t l_right = _boxX + _length - 1;
+    const size_t l_firstTextCol = l_left + 2;
+    const size_t l_lastTextCol = l_right - 2;
 
     if ( l_firstTextCol > l_lastTextCol ) {
         return;
@@ -402,8 +414,8 @@ void constructV1( std::span< const art::frame_t > _art,
         const size_t l_boxX = std::max< ssize_t >( 0, l_px + _ry + 1 );
         const size_t l_boxY = std::max< ssize_t >( 0, l_py );
 
-        drawTextBox( l_boxY, _x, l_boxX, _lines, _length );
-        writeTextBoxText( _text, l_boxY, _x, l_boxX, _lines, _length );
+        drawSpeechBubble( l_boxY, _x, l_boxX, _lines, _length );
+        writeSpeechBubbleText( _text, l_boxY, _x, l_boxX, _lines, _length );
         refresh();
 
         /* Sleep for the current frame delay, then advance the frame index. */

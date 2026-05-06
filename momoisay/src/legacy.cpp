@@ -1,15 +1,13 @@
 #include <getopt.h>
 #include <ncurses.h>
 #include <sys/types.h>
-#include <unistd.h>
 
 #include <algorithm>
+#include <array>
 #include <clocale>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <vector>
+#include <span>
+#include <string_view>
 
 #include "art.hpp"
 #include "momoisay.hpp"
@@ -153,38 +151,44 @@ auto getLine( std::string_view _text ) -> size_t {
     return ( l_lines );
 }
 
-// Allocate a 2D character buffer representing a text canvas.
-using canvas_t = struct canvas {
-    canvas( size_t _x, size_t _y )
-        : _x( _x ), _y( _y ), _data( _x * ( _y + 1 ), '\0' ) {}
+namespace detail {
 
-    auto at( size_t _i, size_t _j ) -> char& {
-        return ( _data[ ( size_t )_i * ( _y + 1 ) + _j ] );
+void handleInput( int _ch ) {
+    if ( _ch == 'q' || _ch == 'Q' ) {
+        endwin();
+        exit( 0 );
     }
+}
 
-    /**
-     * Print each row of the canvas at screen position (_px, _py) using ncurses.
-     *
-     * Each canvas row is printed on the next terminal line.
-     * refresh() is called after all rows are drawn.
-     */
+auto intervalToMilliseconds( size_t _interval ) -> int {
+    constexpr size_t l_microsecondsPerMillisecond = 1000;
+    constexpr size_t l_minimumDelay = 1;
 
-    void print( size_t _x, size_t _px, size_t _py ) {
-        for ( size_t l_i = 0; l_i < _x; l_i++ ) {
-            mvprintw( _py + l_i, _px, "%s", _row( l_i ) );
-        }
+    return static_cast< int >(
+        std::max( l_minimumDelay, _interval / l_microsecondsPerMillisecond ) );
+}
 
-        refresh();
+void drawArtFrame( const art::frame_t& _frame,
+                   size_t _height,
+                   int _px,
+                   int _py ) {
+    for ( size_t l_i = 0; l_i < _height; l_i++ ) {
+        const std::string_view l_row = _frame[ l_i ];
+
+        mvaddnstr( _py + static_cast< int >( l_i ), _px, l_row.data(),
+                   static_cast< int >( l_row.size() ) );
     }
+}
 
-private:
-    auto _row( size_t _i ) -> char* { return ( &_data[ _i * ( _y + 1 ) ] ); }
+void waitForQuit() {
+    timeout( -1 );
 
-private:
-    [[maybe_unused]] int _x;
-    int _y;
-    std::vector< char > _data;
-};
+    while ( true ) {
+        handleInput( getch() );
+    }
+}
+
+} // namespace detail
 
 /**
  * Compute the total text length of argv[_start.._end), including one space
@@ -315,14 +319,10 @@ void writeSpeechBubbleText( std::string_view _text,
  * Render one animated "version 1" scene in ncurses.
  *
  * This function:
- *   - checks for a quit key,
- *   - allocates a temporary character canvas,
- *   - copies the current art frame into that canvas,
+ *   - draws the current art frame directly from static frame storage,
  *   - draws the connector / frame outline on the right side,
  *   - writes a single text block from std::string_view into the extra area,
- *   - prints the completed canvas,
- *   - waits for the current frame delay,
- *   - frees the canvas,
+ *   - waits for input or the current frame delay,
  *   - advances the animation frame,
  *   - repeats until _round reaches zero.
  *
@@ -348,7 +348,7 @@ void constructV1( std::span< const art::frame_t > _art,
                   std::span< const size_t > _intervals,
                   size_t _frames,
                   size_t _x,
-                  size_t _y,
+                  [[maybe_unused]] size_t _y,
                   size_t _ry,
                   size_t _length,
                   size_t _lines,
@@ -358,68 +358,41 @@ void constructV1( std::span< const art::frame_t > _art,
 
     /* Keep rendering until the requested number of rounds is exhausted. */
     while ( _round != 0 ) {
-        /* Make getch() non-blocking for this iteration. */
-        nodelay( stdscr, TRUE );
-
-        /* Read one key if available. With nodelay enabled, this returns
-           immediately instead of waiting for input. */
-        int l_ch = getch();
-
-        /* Exit immediately on q or Q. */
-        if ( l_ch == 'q' || l_ch == 'Q' ) {
-            endwin();
-            exit( 0 );
-        }
-
-        /* Allocate a blank canvas large enough for the art and the extra text
-         * area. */
-        canvas_t l_canvas = { _x, _y };
-
         /* Clear the screen before drawing the new frame. */
         erase();
 
         /* Get current terminal dimensions from ncurses. */
-        size_t l_terminalHeight = LINES;
-        size_t l_terminalWidth = COLS;
+        const int l_terminalHeight = LINES;
+        const int l_terminalWidth = COLS;
 
         /* Compute the top-left draw position so the content is centered. */
-        ssize_t l_px = ( l_terminalWidth - _ry - _length ) / 2;
-        ssize_t l_py = ( l_terminalHeight - _x ) / 2;
+        const int l_px =
+            ( l_terminalWidth - static_cast< int >( _ry + _length ) ) / 2;
+        const int l_py = ( l_terminalHeight - static_cast< int >( _x ) ) / 2;
 
-        /* Process each row of the canvas. */
-        for ( size_t l_i = 0; l_i < _x; l_i++ ) {
-            /* Length of the current art row in the source frame. */
-            const size_t l_len = _art[ l_currentFrame ][ l_i ].size();
+        /* Print the current art frame directly from static frame storage. */
+        detail::drawArtFrame( _art[ l_currentFrame ], _x, l_px, l_py );
 
-            /* Walk across the full output width, including extra text space. */
-            for ( size_t l_j = 0; l_j < _y; l_j++ ) {
-                /* If this column is still inside the source art row, copy the
-                   source character into the canvas. */
-                if ( l_j < l_len ) {
-                    l_canvas.at( l_i, l_j ) =
-                        _art[ l_currentFrame ][ l_i ][ l_j ];
-
-                    /* Otherwise, if the destination cell is still empty, fill
-                       it with a space so the row remains printable as a string.
-                     */
-                } else if ( l_canvas.at( l_i, l_j ) == '\0' ) {
-                    l_canvas.at( l_i, l_j ) = ' ';
-                }
-            }
-        }
-
-        /* Print the completed canvas at the computed terminal position. */
-        l_canvas.print( _x, l_px, l_py );
-
-        const size_t l_boxX = std::max< ssize_t >( 0, l_px + _ry + 1 );
-        const size_t l_boxY = std::max< ssize_t >( 0, l_py );
+        const size_t l_boxX = static_cast< size_t >(
+            std::max< ssize_t >( 0, static_cast< ssize_t >( l_px ) +
+                                        static_cast< ssize_t >( _ry ) + 1 ) );
+        const size_t l_boxY = static_cast< size_t >(
+            std::max< ssize_t >( 0, static_cast< ssize_t >( l_py ) ) );
 
         drawSpeechBubble( l_boxY, _x, l_boxX, _lines, _length );
         writeSpeechBubbleText( _text, l_boxY, _x, l_boxX, _lines, _length );
         refresh();
 
-        /* Sleep for the current frame delay, then advance the frame index. */
-        usleep( _intervals[ l_currentFrame++ ] );
+        if ( _frames == 1 && _round < 0 ) {
+            detail::waitForQuit();
+        }
+
+        timeout(
+            detail::intervalToMilliseconds( _intervals[ l_currentFrame ] ) );
+        detail::handleInput( getch() );
+
+        /* Advance the frame index after the current frame delay. */
+        l_currentFrame++;
 
         /* When the last frame has been shown, loop back to the first one. */
         if ( l_currentFrame == _frames ) {

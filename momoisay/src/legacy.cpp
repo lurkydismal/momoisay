@@ -220,7 +220,7 @@ void drawTextBox( size_t _artY,
     }
 
     const size_t l_textLines = std::max< size_t >( 1, _lines );
-    const size_t l_boxHeight = l_textLines + 2;
+    const size_t l_boxHeight = l_textLines + 3;
     const size_t l_top =
         _artY +
         ( _artHeight > l_boxHeight ? ( _artHeight - l_boxHeight ) / 2 : 0 );
@@ -237,8 +237,16 @@ void drawTextBox( size_t _artY,
         mvaddch( l_bottom, l_col, '-' );
     }
 
-    for ( size_t l_row = l_top + 1; l_row <= l_bottom; l_row++ ) {
-        mvaddch( l_row, l_left, '|' );
+    for ( size_t l_row = l_top + 1; l_row < l_bottom; l_row++ ) {
+        char l_leftBorder = '|';
+
+        if ( l_row == l_top + 1 ) {
+            l_leftBorder = '/';
+        } else if ( l_row == l_top + 2 ) {
+            l_leftBorder = '\\';
+        }
+
+        mvaddch( l_row, l_left, l_leftBorder );
         mvaddch( l_row, l_right, '|' );
     }
 }
@@ -254,7 +262,7 @@ void writeTextBoxText( std::string_view _text,
     }
 
     const size_t l_textLines = std::max< size_t >( 1, _lines );
-    const size_t l_boxHeight = l_textLines + 2;
+    const size_t l_boxHeight = l_textLines + 3;
     const size_t l_top =
         _artY +
         ( _artHeight > l_boxHeight ? ( _artHeight - l_boxHeight ) / 2 : 0 );
@@ -460,10 +468,6 @@ void oneshot( std::string_view _text ) {
 
     if ( g_mode == detail::mode_t::animated ) {
         if ( l_lines <= 30 ) {
-            if ( l_lines & 1 ) {
-                l_lines++;
-            }
-
             constexpr auto l_frame = std::to_array< const size_t >(
                 { 150000, 75000, 150000, 150000, 75000 } );
 
@@ -474,10 +478,6 @@ void oneshot( std::string_view _text ) {
 
     } else if ( g_mode == detail::mode_t::mStatic ) {
         if ( l_lines <= 10 ) {
-            if ( l_lines & 1 ) {
-                l_lines++;
-            }
-
             constexpr auto l_frame = std::to_array< const size_t >( { 75000 } );
 
             constructV1( art::g_momoiStaticV1, _text, l_frame, 1, STATIC_V1_X,

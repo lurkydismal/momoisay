@@ -193,6 +193,24 @@ check_availability() {
     }
 }
 
+prepare_profile_data() {
+    if [ -f "$PROFILE_DATA_FILE" ] && [ ! "$PROFILE_RAW_FILE" -nt "$PROFILE_DATA_FILE" ]; then
+        return
+    fi
+
+    if [ ! -f "$PROFILE_RAW_FILE" ]; then
+        exit_failure "Profile data '$PROFILE_DATA_FILE' not found. Run the profile build executable first to generate '$PROFILE_RAW_FILE'."
+    fi
+
+    check_availability 'llvm-profdata'
+
+    echo -e "$BUILD_TYPE_COLOR""Merging profile data '$PROFILE_RAW_FILE' -> '$PROFILE_DATA_FILE'""$RESET_COLOR"
+
+    llvm-profdata merge \
+        -o "$PROFILE_DATA_FILE" \
+        "$PROFILE_RAW_FILE" || exit_failure "Failed to merge profile data '$PROFILE_RAW_FILE'."
+}
+
 # TODO: Better name
 array_to_string() {
     local output_variable="$1"
@@ -292,6 +310,8 @@ source './config.sh' && {
     # Release
     elif [ "$BUILD_TYPE" -eq "${BUILD_TYPES[RELEASE]}" ]; then
         echo -e "$BUILD_TYPE_COLOR"'Release build'"$RESET_COLOR"
+
+        prepare_profile_data
 
         BUILD_C_FLAGS="$BUILD_C_FLAGS $BUILD_C_FLAGS_RELEASE"
         BUILD_CPP_FLAGS="$BUILD_CPP_FLAGS $BUILD_CPP_FLAGS_RELEASE"

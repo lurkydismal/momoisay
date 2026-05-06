@@ -1,75 +1,111 @@
-# momoisay
-*A CLI program written in C featuring talking Saiba Momoi from Blue Archive!!!*
+<!-- :toc: macro -->
+<!-- :toc-title: -->
+<!-- :toclevels: 99 -->
 
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.1-green)]()
+# build <!-- omit from toc -->
 
----
+> Layouts modules, compiles them in parallel, links a main executable, and optionally builds tests or hot-reloadable shared objects.
 
-## Preview
+## Table of Contents <!-- omit from toc -->
 
-Example of animated usage
+* [General Information](#general-information)
+* [Technologies Used](#technologies-used)
+* [Features](#features)
+* [Setup](#setup)
+* [Usage](#usage)
+* [Project Status](#project-status)
+* [Room for Improvement](#room-for-improvement)
+* [License](#license)
 
-![Demo](preview.gif)
+## General Information
+
+This repository is a starting point for projects that need a simple modular build system driven by Bash.
+Each module lives in its own folder and exports what to compile and what to expose via a `config.sh`.
+The top-level `build.sh` discovers modules, sets compiler flags, runs per-module builds in parallel, links the final executable, and optionally builds tests or creates hot-reloadable `.so` files.
+
+## Technologies Used
+
+<!--
+GNU bash, version 5.3.3(1)-release (x86_64-pc-linux-gnu)
+Copyright (C) 2025 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+
+This is free software; you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+-->
+* GNU bash 5.3.3
+<!--
+clang version 21.1.4
+Target: x86_64-pc-linux-gnu
+Thread model: posix
+
+Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+See https://llvm.org/LICENSE.txt for license information.
+-->
+* clang 21.1.4
+* gtest - 1.17.0-1
+<!--
+Copyright (C) 2002-2007 Andrew Tridgell
+Copyright (C) 2009-2025 Joel Rosdahl and other contributors
+-->
+* ccache - 4.12.1
+* fd - 10.3.0
+* pkg-config - 2.5.1
+* llvm-ar - 21.1.4
 
 ## Features
-- Talking ASCII art of Momoi
-- Animated ASCII art of Momoi
-- Freestyle changing animation of Momoi
 
-## Installation
+* Modular layout. Each module lives in its own folder with `include/`, `src/`, optional `tests/` and a `config.sh` contract that exports what to compile and what to expose.
+* Parallel module builds. Modules are built in background jobs to use all cores.
+* Multiple build types. Supports `DEBUG`, `RELEASE`, `PROFILE`, and `TESTS` with corresponding compiler flags and `-D` defines.
+* Hot reload. Optionally convert archives to `.so` and link with `rpath`. `HOT_RELOAD` define exposed to sources.
+* Build cache. Uses `ccache` by default and can be disabled per-run.
+* Rebuild controls to force rebuilds.
+* Sanitizers and static analysis. Toggle Address/ UB/ Leak sanitizers and `scan-build`.
+* Test packaging. Builds test artifacts and a test executable when `Tests` is selected.
+* External libs supported via `pkg-config`. **cflags** and **link** flags injected automatically.
+* Configurable toolchain and flags. Compiler, link flags, include paths and defines are environment driven.
+* Stripping and section removal. Optional objcopy/ strip steps to reduce binary size.
+* Colored status output for build steps and module lists.
 
-#### disclaimer
-Sometimes the precompiled binaries are not the latest version as the release. If you want to make sure that you got the latest version, you can built it from source. You can check the versions of the compiled binaries in the `/bin` folders.
+## Setup
 
-### Linux
-```bash
-git clone https://github.com/Mon4sm/Momoisay.git
-cd Momoisay
-sudo sh ./install/linux.sh
-```
-### MacOS
-```bash
-git clone https://github.com/Mon4sm/Momoisay.git
-cd Momoisay
-sudo sh ./install/mac.sh
-```
-### Build from source (Latest Version)
-```bash
-git clone https://github.com/Mon4sm/Momoisay.git
-cd Momoisay
-make
-```
+`Dockerfile` is available.
 
 ## Usage
+
+Make the script executable and run:
+
 ```bash
-momoisay --help         # Show help
-momoisay <text>         # Simple Usage
-momoisay -a             # Animated Momoi with no text bubble (default version 1)
-momoisay -a <version>   # Animated Momoi with no text bubble (default version 1)
-momoisay -f             # Freestyle animations (This is pretty cool for ricing)
+chmod +x build.sh
+
+./build.sh -d       # Debug
+./build.sh -r       # Release
+./build.sh -p       # Profile
+./build.sh -t       # Build tests
 ```
 
-## File Structure
+Combine flags. Example: build release, strip executable, disable cache:
+
+```bash
+./build.sh -ric
 ```
-repo/
-├── bin/ 
-│    ├── linux/
-│    │   ├── version.txt
-│    │   └── momoisay
-│    └── mac/
-│        ├── version.txt 
-│        └── momoisay
-├── install/
-│    ├── mac.sh
-│    └── linux.sh
-├── src/
-│    ├── art/
-│    │   ├── art.c
-│    │   └── art.h
-│    └── momoisay.c
-├── Makefile
-├── LICENSE
-├── preview.gif
-└── README.md
+
+Force rebuild of all parts:
+
+```bash
+./build.sh -au
 ```
+
+## Project Status
+
+Project is: _in progress_.
+
+## Room for Improvement
+
+* Wrap repeating parts in functions
+
+## License
+
+This project is open source and available under the
+[GNU Affero General Public License v3.0](LICENSE).

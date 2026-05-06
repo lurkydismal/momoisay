@@ -34,6 +34,8 @@ export BUILD_DIRECTORY_NAME="out"
 export TESTS_DIRECTORY_NAME="tests"
 export BUILD_DIRECTORY="$SCRIPT_DIRECTORY/$BUILD_DIRECTORY_NAME"
 export TESTS_DIRECTORY="$TESTS_DIRECTORY_NAME"
+export PROFILE_RAW_FILE="${PROFILE_RAW_FILE:-$SCRIPT_DIRECTORY/default.profraw}"
+export PROFILE_DATA_FILE="${PROFILE_DATA_FILE:-$SCRIPT_DIRECTORY/default.profdata}"
 
 export HASH_FUNCTION="sha512sum"
 
@@ -114,8 +116,8 @@ EOF
 
 export BUILD_C_FLAGS="-pipe -std=gnu23 -march=native -ffunction-sections -fdata-sections -fPIC -fopenmp-simd -fno-ident -fno-short-enums -Wall -Wextra -Wno-gcc-compat -Wno-incompatible-pointer-types-discards-qualifiers"
 export BUILD_C_FLAGS_DEBUG="-Og -ggdb3"
-export BUILD_C_FLAGS_RELEASE="-flto=jobserver -fprofile-instr-use -O3 -ffast-math -funroll-loops -fno-asynchronous-unwind-tables"
-export BUILD_C_FLAGS_PROFILE="-fprofile-instr-generate -pg -O3 -ffast-math -funroll-loops -fno-asynchronous-unwind-tables"
+export BUILD_C_FLAGS_RELEASE="-flto=jobserver -fprofile-instr-use=$PROFILE_DATA_FILE -O3 -ffast-math -funroll-loops -fno-asynchronous-unwind-tables"
+export BUILD_C_FLAGS_PROFILE="-fprofile-instr-generate=$PROFILE_RAW_FILE -pg -O3 -ffast-math -funroll-loops -fno-asynchronous-unwind-tables"
 export BUILD_C_FLAGS_TESTS="$BUILD_C_FLAGS_DEBUG -fopenmp -O0"
 export BUILD_C_FLAGS_HOT_RELOAD=""
 
@@ -160,7 +162,7 @@ export BUILD_INCLUDES=()
 export LINK_FLAGS="-fPIC -fuse-ld=mold -Wl,-O1 -Wl,--gc-sections"
 export LINK_FLAGS_DEBUG="-rdynamic"
 export LINK_FLAGS_RELEASE="-flto -s -Wl,--no-eh-frame-hdr"
-export LINK_FLAGS_PROFILE="-Wl,--no-eh-frame-hdr"
+export LINK_FLAGS_PROFILE="-fprofile-instr-generate=$PROFILE_RAW_FILE -Wl,--no-eh-frame-hdr"
 export LINK_FLAGS_TESTS="-fopenmp $LINK_FLAGS_DEBUG"
 export LINK_FLAGS_HOT_RELOAD="-Wl,-rpath,\$ORIGIN"
 

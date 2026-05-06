@@ -220,7 +220,7 @@ void drawTextBox( size_t _artY,
     }
 
     const size_t l_textLines = std::max< size_t >( 1, _lines );
-    const size_t l_boxHeight = l_textLines + 3;
+    const size_t l_boxHeight = l_textLines + 4;
     const size_t l_top =
         _artY +
         ( _artHeight > l_boxHeight ? ( _artHeight - l_boxHeight ) / 2 : 0 );
@@ -232,22 +232,19 @@ void drawTextBox( size_t _artY,
         return;
     }
 
+    mvaddch( l_top, l_left, ACS_ULCORNER );
+    mvaddch( l_top, l_right, ACS_URCORNER );
+    mvaddch( l_bottom, l_left, ACS_LLCORNER );
+    mvaddch( l_bottom, l_right, ACS_LRCORNER );
+
     for ( size_t l_col = l_left + 1; l_col < l_right; l_col++ ) {
-        mvaddch( l_top, l_col, '_' );
-        mvaddch( l_bottom, l_col, '-' );
+        mvaddch( l_top, l_col, ACS_HLINE );
+        mvaddch( l_bottom, l_col, ACS_HLINE );
     }
 
     for ( size_t l_row = l_top + 1; l_row < l_bottom; l_row++ ) {
-        char l_leftBorder = '|';
-
-        if ( l_row == l_top + 1 ) {
-            l_leftBorder = '/';
-        } else if ( l_row == l_top + 2 ) {
-            l_leftBorder = '\\';
-        }
-
-        mvaddch( l_row, l_left, l_leftBorder );
-        mvaddch( l_row, l_right, '|' );
+        mvaddch( l_row, l_left, ACS_VLINE );
+        mvaddch( l_row, l_right, ACS_VLINE );
     }
 }
 
@@ -262,12 +259,12 @@ void writeTextBoxText( std::string_view _text,
     }
 
     const size_t l_textLines = std::max< size_t >( 1, _lines );
-    const size_t l_boxHeight = l_textLines + 3;
+    const size_t l_boxHeight = l_textLines + 4;
     const size_t l_top =
         _artY +
         ( _artHeight > l_boxHeight ? ( _artHeight - l_boxHeight ) / 2 : 0 );
-    const size_t l_firstTextRow = l_top + 1;
-    const size_t l_lastTextRow = l_top + l_textLines;
+    const size_t l_firstTextRow = l_top + 2;
+    const size_t l_lastTextRow = l_top + l_textLines + 1;
     const size_t l_firstTextCol = _boxX + 2;
     const size_t l_lastTextCol = _boxX + _length - 2;
 
